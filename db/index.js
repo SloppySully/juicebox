@@ -2,6 +2,8 @@ const { Client } = require('pg'); // imports the pg module
 // supply the db name and location of the database
 const client = new Client('postgres://localhost:5432/juicebox-dev');
 
+
+
 module.exports = {
     client,
   }
@@ -158,6 +160,18 @@ module.exports = {
     }
   }
 
+  async function getAllTags() {
+    try {
+      const { rows } = await client.query(`
+        SELECT * FROM tags;
+      `);
+  
+      return rows;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async function getAllUsers() {
     try {
       const { rows } = await client.query(`
@@ -253,6 +267,15 @@ module.exports = {
         WHERE id=$1;
       `, [postId]);
   
+      // THIS IS NEW
+      if (!post) {
+        throw {
+          name: "PostNotFoundError",
+          message: "Could not find a post with that postId"
+        };
+      }
+      // NEWNESS ENDS HERE
+  
       const { rows: tags } = await client.query(`
         SELECT tags.*
         FROM tags
@@ -276,7 +299,38 @@ module.exports = {
       throw error;
     }
   }
+
+  async function getUserByUsername(username) {
+    try {
+      const { rows: [user] } = await client.query(`
+        SELECT *
+        FROM users
+        WHERE username=$1;
+      `, [username]);
   
+      return user;
+    } catch (error) {
+      throw error;
+    }
+  }
+  async function getPostsByTagName(tagName) {
+    try {
+      const { rows: postIds } = await client.query(`
+        SELECT posts.id
+        FROM posts
+        JOIN post_tags ON posts.id=post_tags."postId"
+        JOIN tags ON tags.id=post_tags."tagId"
+        WHERE tags.name=$1;
+      `, [tagName]);
+  
+      return await Promise.all(postIds.map(
+        post => getPostById(post.id)
+      ));
+    } catch (error) {
+      throw error;
+    }
+  } 
+
   module.exports = {
     client,
     getAllUsers,
@@ -289,5 +343,8 @@ module.exports = {
     getUserById,
     createTags,
     addTagsToPost,
-    getPostById
+    getPostById,
+    getAllTags,
+    getUserByUsername,
+    getPostsByTagName
   }
